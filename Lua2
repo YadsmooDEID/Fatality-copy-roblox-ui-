@@ -1,0 +1,296 @@
+-- // Services
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+-- // Load Your Custom Fatality UI Repository
+local scriptUrl = "https://raw.githubusercontent.com/YadsmooDEID/Fatality-copy-roblox-ui-/refs/heads/main/Lua"
+local Fatality = nil
+
+local success, err = pcall(function()
+    Fatality = loadstring(game:HttpGet(scriptUrl))()
+end)
+
+if not success or not Fatality then
+    warn("Failed to load Fatality library from repository: " .. tostring(err))
+    return
+end
+
+-- // Global Feature States
+getgenv().AimbotEnabled = false
+getgenv().AimbotFOV = 120
+getgenv().AimbotSmoothness = 0.2
+getgenv().TargetPart = "Head"
+getgenv().ShowFOV = false
+
+getgenv().DesyncAntiAim = false
+getgenv().PitchAngle = -80
+getgenv().JitterSpeed = 0.03
+getgenv().HalfSpin = true
+
+getgenv().BoxESP = false
+getgenv().NameESP = false
+
+-- // Create Main Fatality Window
+local Window = Fatality.new({
+    Name = "FATALITY.WIN",
+    SubName = "CS2 Mobile Edition",
+    Expire = "never"
+})
+
+-- // Mobile UI Scale & Auto-Center Engine
+local UIScaleInstance = nil
+local TargetGui = nil
+
+task.spawn(function()
+    task.wait(0.5)
+    for _, gui in ipairs({gethui and gethui(), CoreGui, LocalPlayer:FindFirstChild("PlayerGui")}) do
+        if gui then
+            TargetGui = gui:FindFirstChild("Fatality") or gui:FindFirstChild("FatalityWin") or gui:FindFirstChild("FatalityUI") or gui:FindFirstChildOfClass("ScreenGui")
+            if TargetGui and TargetGui.Name ~= "FatalityMobileToggle" then break end
+        end
+    end
+
+    if TargetGui then
+        local mainFrame = TargetGui:FindFirstChildOfClass("Frame") or TargetGui:FindFirstChild("Main") or TargetGui:FindFirstChild("Window")
+        if mainFrame then
+            -- Inject scale reducer
+            UIScaleInstance = mainFrame:FindFirstChild("UIScale") or Instance.new("UIScale")
+            UIScaleInstance.Scale = UserInputService.TouchEnabled and 0.65 or 1.0
+            UIScaleInstance.Parent = mainFrame
+            
+            -- Lock frame to screen center
+            mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+            mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+        end
+    end
+end)
+
+-- // Floating Mobile Re-Open Button (F)
+local ToggleGui = Instance.new("ScreenGui")
+ToggleGui.Name = "FatalityMobileToggle"
+ToggleGui.Parent = (gethui and gethui()) or CoreGui or LocalPlayer:WaitForChild("PlayerGui")
+
+local ReopenBtn = Instance.new("TextButton")
+ReopenBtn.Parent = ToggleGui
+ReopenBtn.BackgroundColor3 = Color3.fromRGB(15, 12, 22)
+ReopenBtn.BorderColor3 = Color3.fromRGB(235, 30, 90)
+ReopenBtn.BorderSizePixel = 1
+ReopenBtn.Position = UDim2.new(0.04, 0, 0.25, 0)
+ReopenBtn.Size = UDim2.new(0, 44, 0, 44)
+ReopenBtn.Font = Enum.Font.GothamBold
+ReopenBtn.Text = "F"
+ReopenBtn.TextColor3 = Color3.fromRGB(235, 30, 90)
+ReopenBtn.TextSize = 20
+ReopenBtn.Active = true
+ReopenBtn.Draggable = true
+
+local ReopenCorner = Instance.new("UICorner")
+ReopenCorner.CornerRadius = UDim.new(0, 8)
+ReopenCorner.Parent = ReopenBtn
+
+ReopenBtn.MouseButton1Click:Connect(function()
+    if TargetGui then
+        TargetGui.Enabled = not TargetGui.Enabled
+    end
+end)
+
+-- // Navigation Bar Tabs
+local RageTab = Window:AddMenu({ Name = "RAGE", Icon = "skull" })
+local VisualTab = Window:AddMenu({ Name = "VISUAL", Icon = "eye" })
+local MiscTab = Window:AddMenu({ Name = "MISC", Icon = "cog" })
+
+-- ========================================================
+-- RAGE TAB (Aimbot & Desync Anti-Aim)
+-- ========================================================
+local AimbotFolder = RageTab:AddFolder({ Name = "Aimbot Settings" })
+
+AimbotFolder:AddToggle({
+    Name = "Enable Aimbot",
+    Default = false,
+    Callback = function(State)
+        getgenv().AimbotEnabled = State
+    end
+})
+
+AimbotFolder:AddSlider({
+    Name = "Aimbot FOV",
+    Min = 30,
+    Max = 400,
+    Default = 120,
+    Callback = function(Value)
+        getgenv().AimbotFOV = Value
+    end
+})
+
+AimbotFolder:AddSlider({
+    Name = "Aimbot Smoothness",
+    Min = 1,
+    Max = 10,
+    Default = 2,
+    Callback = function(Value)
+        getgenv().AimbotSmoothness = Value / 10
+    end
+})
+
+local AntiAimFolder = RageTab:AddFolder({ Name = "Anti-Aim Setup" })
+
+AntiAimFolder:AddToggle({
+    Name = "Enable Desync Anti-Aim",
+    Default = false,
+    Callback = function(State)
+        getgenv().DesyncAntiAim = State
+    end
+})
+
+AntiAimFolder:AddToggle({
+    Name = "Half-Spin Jitter",
+    Default = true,
+    Callback = function(State)
+        getgenv().HalfSpin = State
+    end
+})
+
+AntiAimFolder:AddSlider({
+    Name = "Pitch Angle",
+    Min = -90,
+    Max = 0,
+    Default = -80,
+    Suffix = "°",
+    Callback = function(Value)
+        getgenv().PitchAngle = Value
+    end
+})
+
+-- ========================================================
+-- VISUAL TAB
+-- ========================================================
+local EspFolder = VisualTab:AddFolder({ Name = "Player Visuals (ESP)" })
+
+EspFolder:AddToggle({
+    Name = "Box ESP",
+    Default = false,
+    Callback = function(State)
+        getgenv().BoxESP = State
+    end
+})
+
+EspFolder:AddToggle({
+    Name = "Name ESP",
+    Default = false,
+    Callback = function(State)
+        getgenv().NameESP = State
+    end
+})
+
+-- ========================================================
+-- MISC TAB
+-- ========================================================
+local MiscFolder = MiscTab:AddFolder({ Name = "Interface & Movement" })
+
+MiscFolder:AddSlider({
+    Name = "UI Scale Size",
+    Min = 40,
+    Max = 120,
+    Default = UserInputService.TouchEnabled and 65 or 100,
+    Suffix = "%",
+    Callback = function(Value)
+        if UIScaleInstance then
+            UIScaleInstance.Scale = Value / 100
+        end
+    end
+})
+
+MiscFolder:AddSlider({
+    Name = "WalkSpeed Override",
+    Min = 16,
+    Max = 250,
+    Default = 16,
+    Callback = function(Value)
+        local char = LocalPlayer.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = Value end
+        end
+    end
+})
+
+-- ========================================================
+-- AIMBOT ENGINE LOOP
+-- ========================================================
+local function GetClosestTarget()
+    local closestPlayer = nil
+    local shortestDistance = getgenv().AimbotFOV
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            local targetPart = player.Character:FindFirstChild(getgenv().TargetPart) or player.Character:FindFirstChild("HumanoidRootPart")
+            if targetPart then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                if onScreen then
+                    local mousePos = UserInputService:GetMouseLocation()
+                    local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+
+                    if distance < shortestDistance then
+                        shortestDistance = distance
+                        closestPlayer = targetPart
+                    end
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+RunService.RenderStepped:Connect(function()
+    if getgenv().AimbotEnabled then
+        local target = GetClosestTarget()
+        if target then
+            local targetCFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, getgenv().AimbotSmoothness or 0.2)
+        end
+    end
+end)
+
+-- ========================================================
+-- DESYNC ANTI-AIM ENGINE LOOP
+-- ========================================================
+local lastJitter = 0
+
+RunService.Stepped:Connect(function()
+    if not getgenv().DesyncAntiAim then return end
+
+    local char = LocalPlayer.Character
+    if not char then return end
+
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    
+    if root and hum and hum.Health > 0 then
+        root.RotVelocity = Vector3.new(0, 0, 0)
+
+        if tick() - lastJitter > (getgenv().JitterSpeed or 0.03) then
+            local pitchRad = math.rad(getgenv().PitchAngle or -80)
+            local spinOffset = getgenv().HalfSpin and math.rad(math.random(-90, 90)) or 0
+
+            if hum.RigType == Enum.HumanoidRigType.R6 then
+                local torso = char:FindFirstChild("Torso")
+                if torso and torso:FindFirstChild("RootJoint") then
+                    torso.RootJoint.C0 = CFrame.new(0, 0, 0) 
+                        * CFrame.Angles(-math.pi/2 + pitchRad, spinOffset, math.pi)
+                end
+            elseif hum.RigType == Enum.HumanoidRigType.R15 then
+                local upperTorso = char:FindFirstChild("UpperTorso")
+                if upperTorso and upperTorso:FindFirstChild("Waist") then
+                    upperTorso.Waist.C0 = CFrame.new(0, 0.2, 0) 
+                        * CFrame.Angles(pitchRad, spinOffset, 0)
+                end
+            end
+
+            lastJitter = tick()
+        end
+    end
+end)
